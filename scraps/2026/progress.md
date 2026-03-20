@@ -26,7 +26,7 @@
 
 ### Phase 3: 遅延除去・ReDoS 修正
 
-- [x] `crok.ts`: `sleep(3000)` + `sleep(10)` × 文字数 を削除 (`b2761b2`)
+- `crok.ts`: `sleep(3000)` / `sleep(10)` は仕様として維持 (除去対象外)
 - [x] `DirectMessagePage.tsx`: `setInterval(..., 1)` → `useEffect` + `scrollTo` に置換 (`b2761b2`)
 - [x] `AspectRatioBox.tsx`: `setTimeout(calcStyle, 500)` → `ResizeObserver` に置換 (`b2761b2`)
 - [x] ReDoS: `validation.ts`・`services.ts` の 4 箇所を修正 (`1d7d824`)
@@ -35,6 +35,7 @@
 
 ## 未対応 (優先順)
 
+- [ ] **Phase 2**: `react-syntax-highlighter` → light ビルド + 必要言語のみ登録
 - [ ] **Phase 4**: 動画を GIF → WebM/MP4 に変換して配信
 - [ ] **Phase 4**: 画像を AVIF/WebP + リサイズして配信
 - [ ] **Phase 4**: 音声を MP3 → Opus に変換して配信

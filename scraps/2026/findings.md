@@ -28,12 +28,12 @@
 
 ---
 
-## 意図的な遅延 (仕込み)
+## 意図的な遅延
 
 | 場所 | 内容 | 影響 |
 | --- | --- | --- |
-| `server/src/routes/api/crok.ts` | `await sleep(3000)` | Crok の TTFT が 3 秒 |
-| `server/src/routes/api/crok.ts` | `await sleep(10)` × 文字数 | Crok の全文送信が数十秒 |
+| `server/src/routes/api/crok.ts` | `await sleep(3000)` | **仕様** (AI が考える時間として意図的) — 除去禁止 |
+| `server/src/routes/api/crok.ts` | `await sleep(10)` × 文字数 | **仕様** (SSE フラッシュも兼ねる) — 除去禁止 |
 | `client/src/components/direct_message/DirectMessagePage.tsx` | `setInterval(() => {...}, 1)` | 毎ミリ秒スクロール監視・TBT 大幅増加 |
 | `client/src/components/foundation/AspectRatioBox.tsx` | `setTimeout(calcStyle, 500)` | 500ms 描画遅延・CLS |
 
@@ -52,11 +52,14 @@
 | `moment` | ~300KB | `day.js` |
 | `lodash` | ~70KB (全体 import) | ネイティブ JS |
 | `jquery` + `jquery-binarytransport` | ~87KB | `fetch` |
-| `bluebird` | Promise ライブラリ | ネイティブ `Promise` |
-| `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 |
-| `negaposi-analyzer-ja` | 感情極性分析 | サーバー側に移行 |
+| `bluebird` | Promise ライブラリ | ネイティブ `Promise` (**対応済み**) |
+| `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 (**対応済み**) |
+| `negaposi-analyzer-ja` | 感情極性分析 | サーバー側に移行 (**対応済み**) |
+| `bayesian-bm25` | BM25 検索 (Crok サジェスト) | サーバー側に移行 (**対応済み**) |
+| `@mlc-ai/web-llm` | フロント LLM 翻訳 | `POST /api/v1/translate` に移行 (**対応済み**) |
+| `react-syntax-highlighter` | シンタックスハイライト (全言語バンドル) | light ビルド化 (**未対応**) |
 
-`kuromoji` + `negaposi-analyzer-ja` は検索画面の「ネガポジ判定」で使用。
+`kuromoji` + `negaposi-analyzer-ja` は検索画面の「ネガポジ判定」および Crok のサジェスト絞り込みで使用。
 
 ---
 

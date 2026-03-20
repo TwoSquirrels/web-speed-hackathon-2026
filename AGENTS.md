@@ -75,7 +75,7 @@
 | ファイル | 内容 |
 |--------|------|
 | [`scraps/2026/findings.md`](./scraps/2026/findings.md) | 発見した仕込み・問題点の一覧。HAR 解析結果・初期スコアも収録。 |
-| [`scraps/2026/progress.md`](./scraps/2026/progress.md) | 対応状況・残 TODO (Phase 1〜3 対応済み)。 |
+| [`scraps/2026/progress.md`](./scraps/2026/progress.md) | 対応状況・残 TODO (Phase 1〜3 + Phase 2 追加バンドル削減 対応済み)。 |
 
 ---
 
