@@ -53,7 +53,8 @@
 | `lodash` | 544 KB (全体 import) | ネイティブ JS (`SoundWaveSVG.tsx` で使用) |
 | `standardized-audio-context` | **466 KB** | 不要 — `AudioContext` はモダンブラウザにネイティブ実装。`webpack.config.js` の `ProvidePlugin` でグローバル注入されている仕込み |
 | `jquery` + `jquery-binarytransport` | 285 + 48 KB | `fetch` に置き換え (`fetchers.ts`) |
-| `bluebird` | 183 KB | `gifler` (→ `PausableMovie.tsx`) の依存として流入。GIF → WebM/MP4 変換で `gifler` ごと除去できる |
+| `bluebird` | 183 KB | `gifler@0.3.0` の依存として流入 (`pnpm why bluebird` で確認済み)。GIF → WebM 変換 + `PausableMovie.tsx` を native `<video>` 化で `gifler` / `omggif` ごと除去できる |
+| `gifler` + `omggif` | - | `PausableMovie.tsx` で GIF を canvas に描画するために使用。native `<video>` 化で除去 |
 | `moment` | 176 KB | `day.js` |
 | `piexifjs` | 79 KB | `CoveredImage.tsx` で使用。用途要確認 |
 | `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 (**対応済み**) |
@@ -138,6 +139,46 @@ upstream の flaky テスト修正 (PR#257) の内容は **タイムアウトを
 `home:52`, `post-detail:10,:27,:43,:72`
 
 原因はスペック不足によるタイムアウト (非同期化で GIF がより速く読み込まれ、Playwright クリック時に `<button>` がすでに出ている or 遷移待機が間に合わない)。**manual テストでは正常動作確認済み**。レギュレーション規定「テスト実装上の不安定さに起因するものであれば許容」に該当し、fly.io デプロイ環境は高速なため問題なし。
+
+---
+
+## バンドル構成の問題点 (bundle-bundle-analyzer 2026-03-21 調査)
+
+### entry modules (concatenated) が巨大
+
+`AppContainer.tsx` が全ルートの Container を **static import** しているため、全ページのコードが entry chunk (main.js) に入っている。
+
+```ts
+// 現状: 全部 eager import
+import { CrokContainer } from "...";
+import { DirectMessageContainer } from "...";
+import { TimelineContainer } from "...";
+// ... 10 コンテナ全部
+```
+
+**対策**: `React.lazy()` + `<Suspense>` でルートレベルのコード分割。各ページのコードを別チャンクに分離し、遷移時のみロードする。
+
+### static メディアファイルのサイズ
+
+`application/public/` に配置されたシードデータの実体ファイル (initialize では消えない):
+
+| 種別 | 件数 | 合計サイズ | 現状 | 変換先 | 期待削減率 |
+|------|------|-----------|------|--------|-----------|
+| 動画 | 15 件 | ~180 MB | GIF | WebM (VP9) | ~1/10〜1/20 |
+| 音声 | 15 件 | ~67 MB | MP3 | WebM/Opus | ~1/5〜1/10 |
+| 画像 | 30 件 | ~86 MB | JPEG (無圧縮) | JPEG 圧縮 (quality 75) | ~1/3〜1/5 |
+
+**注意**: 画像は `piexifjs` が JPEG-only のため WebP/AVIF に変換すると ALT 表示機能 (EXIF Image Description 読み取り) が壊れる。JPEG のまま品質調整で対応する。
+
+### サーバー側メディア変換フォーマット
+
+ユーザーアップロード時の変換先も合わせて変更が必要:
+- `server/src/routes/api/movie.ts`: ffmpeg 出力 `.gif` → `.webm` (VP8、アップロード処理速度優先)
+- `server/src/routes/api/sound.ts`: ffmpeg 出力 `.mp3` → `.webm` (Opus)
+- `server/src/routes/api/image.ts`: sharp の quality パラメータ追加 (デフォルト 80→75 程度)
+
+クライアント側のパス生成関数も変更が必要:
+- `get_path.ts`: `getMoviePath` `.gif`→`.webm`、`getSoundPath` `.mp3`→`.webm`
 
 ---
 

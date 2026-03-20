@@ -1,49 +1,51 @@
 # WSH 2026 対応状況
 
-発見した問題の対応状況と残 TODO を管理する。発見内容の詳細は [`findings.md`](./findings.md) を参照。
+発見した問題の対応状況と残 TODO を管理する。発見内容の詳細は [`findings.md`](./findings.md) を参照。現在のコードと [`checklist.md`](../checklist.md) を参考に、随時項目を追加・更新していくこと。
+
+チェックが付いているものは対応済み。上から優先順。
 
 ---
-
-## 対応済み
-
-### Phase 1: ビルド設定修正
 
 - [x] `webpack.config.js`: `mode: "none"` → `mode: "production"`、`devtool` 削除 (`f29812b`)
 - [x] `client/package.json` build script: `NODE_ENV=development webpack` → `webpack` (`43e0877`)
 - [x] `Dockerfile` build ステージ: `ENV NODE_ENV=production` を追加 (`aaffb61`)
 - [x] `index.html`: `<script defer>` を追加 (`b8c2c00`)
 - [x] Babel 設定改善 (`e72313b`)
-
-### Phase 2: バンドルサイズ削減
-
 - [x] `@ffmpeg/core` + `@ffmpeg/ffmpeg` WASM → サーバー側 ffmpeg に移行 (`fa6ed03`)
 - [x] `@imagemagick/magick-wasm` WASM → サーバー側 sharp に移行 (`6eb432f`)
 - [x] `@mlc-ai/web-llm` → `POST /api/v1/translate` (MyMemory プロキシ) に移行、`langs`/`common-tags`/`json-repair-js`/`tiny-invariant`/`encoding-japanese` も削除
 - [x] デッドコード `extract_metadata_from_sound.ts` を削除
-- [x] `negaposi-analyzer-ja` + `kuromoji` + `bayesian-bm25` + `bluebird` → サーバー側 `POST /api/v1/sentiment` + `GET /api/v1/crok/suggestions/search` に移行
-  - サジェスト候補のハイライトは `queryTokens` をレスポンスに含めてクライアントに渡す形で対応 (名詞ハイライト要件を維持)
-- [x] `react-syntax-highlighter` → `ChatMessage` で `React.lazy` + `Suspense` に変更、highlight.js チャンクを main.js から分離
-  - メッセージ送信時 (`CrokContainer.sendMessage`) に `import()` で prefetch 開始、コードブロック描画までの sleep 時間内にロード完了する設計
-  - **light ビルド + 言語絞り込みを採用しなかった理由**: `Light` ビルドの自動検出は登録済み言語の中からしか選ばないため、全言語入りビルドと自動検出結果が変わりシンタックスハイライトの色付きが変化する。挙動変更禁止のため full ビルドのまま遅延ロードで対応
-- main.js: **107.8 MB → ~12 MiB** に削減 (highlight.js 遅延分離で更に削減)
-
-### Phase 3: 遅延除去・ReDoS 修正
-
-- `crok.ts`: `sleep(3000)` / `sleep(10)` は仕様として維持 (除去対象外)
+- [x] `negaposi-analyzer-ja` + `kuromoji` + `bayesian-bm25` → サーバー側 `POST /api/v1/sentiment` + `GET /api/v1/crok/suggestions/search` に移行 (名詞ハイライト要件は `queryTokens` をレスポンスに含めて維持)
+- [x] `react-syntax-highlighter` → `React.lazy` + `Suspense` で遅延分離。`CrokContainer.sendMessage` 時に prefetch 開始 (full ビルドのまま — Light ビルドは自動言語検出結果が変わり挙動変更禁止に抵触するため)
+- [x] main.js: **107.8 MB → ~12 MiB** に削減
 - [x] `DirectMessagePage.tsx`: `setInterval(..., 1)` → `useEffect` + `scrollTo` に置換 (`b2761b2`)
 - [x] `AspectRatioBox.tsx`: `setTimeout(calcStyle, 500)` → `ResizeObserver` に置換 (`b2761b2`)
 - [x] ReDoS: `validation.ts`・`services.ts` の 4 箇所を修正 (`1d7d824`)
-
----
-
-## 未対応 (優先順)
-
-- [x] **Phase 2**: `standardized-audio-context` (466 KB) を除去 — `webpack.config.js` の `ProvidePlugin` から削除 (`AudioContext` はネイティブ実装済み)
-- [x] **Phase 2**: `fetchers.ts` を `fetch` に置き換え → `jquery` (285 KB) + `jquery-binarytransport` + `pako` + 同期 XHR (TBT) を除去。`bodyParser.json()` が `Content-Encoding: gzip` を自動デコードするため gzip なしで送信しても問題なし
-- [ ] **Phase 2**: `lodash` (544 KB) → ネイティブ JS に置き換え (`SoundWaveSVG.tsx` 等)
-- [ ] **Phase 2**: `moment` (176 KB) → `day.js` に置き換え
-- [ ] **Phase 4**: 動画を GIF → WebM/MP4 に変換して配信
-- [ ] **Phase 4**: 画像を AVIF/WebP + リサイズして配信
-- [ ] **Phase 4**: 音声を MP3 → Opus に変換して配信
-- [ ] **Phase 5**: gzip 圧縮・N+1 改善 (キャッシュは採点ツールが毎回 cold start で実行するため WSH スコアに効果なし → 対象外)
+- [x] `standardized-audio-context` (466 KB) を除去 — `webpack.config.js` の `ProvidePlugin` から削除
+- [x] `fetchers.ts` を `fetch` に置き換え → `jquery` + `jquery-binarytransport` + `pako` + 同期 XHR (TBT) を除去
+- [x] `InfiniteScroll.tsx`: 2^18 ループ → `IntersectionObserver` に置換
+- [x] `use_infinite_fetch.ts`: `allData` キャッシュで毎回全件 re-fetch を排除
+- [x] `lodash` (544 KB) → ネイティブ JS に置き換え (`SoundWaveSVG.tsx`)
+- [x] `moment` (176 KB) → `dayjs` に置き換え (6 ファイル。plugin 設定は `index.tsx` で一括登録)
+- [x] `crok.ts`: `sleep(3000)` / `sleep(10)` は仕様として**維持** (除去禁止)
+- [ ] **Phase 4 ①** GIF → WebM (VP9) 変換 + `PausableMovie.tsx` を native `<video>` 化 ← **次にやること**
+  - `public/movies/*.gif` を ffmpeg で WebM (VP9) に変換 (`-crf 33 -b:v 0 -cpu-used 4 -an`)
+  - ユーザーアップロード `server/src/routes/api/movie.ts` も `.webm` 出力に変更 (VP8 推奨、速度優先)
+  - `get_path.ts`: `getMoviePath` の拡張子 `.gif` → `.webm`
+  - `PausableMovie.tsx`: `gifler` + canvas → native `<video autoplay loop muted playsInline>` に書き換え
+    - `gifler` / `omggif` / `bluebird` がバンドルから消える
+    - `aria-label="動画プレイヤー"` の button は維持 (E2E テスト要件)
+    - `prefers-reduced-motion` 対応維持
+- [ ] **Phase 4 ②** `AppContainer.tsx` のルートレベル `React.lazy()` + `<Suspense>` 化
+  - 全 10 コンテナが static import → entry chunk に全部入っている
+  - 各 Route の element を `lazy(() => import("..."))` に変更し entry chunk を大幅削減
+- [ ] **Phase 4 ③** MP3 → WebM/Opus 変換
+  - `public/sounds/*.mp3` を ffmpeg で WebM/Opus に変換 (`-c:a libopus -b:a 96k`)
+  - `server/src/routes/api/sound.ts` も `.webm` 出力に変更
+  - `get_path.ts`: `getSoundPath` の拡張子 `.mp3` → `.webm`
+  - `SoundPlayer.tsx`: `<audio>` タグは WebM/Opus を Chrome でそのまま再生可能 → 変更不要
+- [ ] **Phase 4 ④** JPEG 圧縮最適化
+  - `public/images/*.jpg` を sharp で quality 75 に再圧縮 (WebP/AVIF は `piexifjs` が JPEG-only のため非推奨)
+  - `server/src/routes/api/image.ts` で quality パラメータ追加
+- [ ] **Phase 5** gzip 圧縮・N+1 改善 (キャッシュは採点ツールが毎回 cold start で実行するため WSH スコアに効果なし → 対象外)
 - [ ] デプロイ後スコア再計測 (運営インフラ修正待ち)

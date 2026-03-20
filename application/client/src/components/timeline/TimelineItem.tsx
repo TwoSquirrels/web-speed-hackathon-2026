@@ -1,4 +1,4 @@
-import moment from "moment";
+import dayjs from "dayjs";
 import { MouseEventHandler, useCallback } from "react";
 import { Link, useNavigate } from "react-router";
 
@@ -91,8 +91,8 @@ export const TimelineItem = ({ post }: Props) => {
               onClick={stopPropagation}
               to={`/posts/${post.id}`}
             >
-              <time dateTime={moment(post.createdAt).toISOString()}>
-                {moment(post.createdAt).locale("ja").format("LL")}
+              <time dateTime={new Date(post.createdAt).toISOString()}>
+                {dayjs(post.createdAt).format("LL")}
               </time>
             </Link>
           </p>
