@@ -18,7 +18,9 @@
 
 - [x] `@ffmpeg/core` + `@ffmpeg/ffmpeg` WASM → サーバー側 ffmpeg に移行 (`fa6ed03`)
 - [x] `@imagemagick/magick-wasm` WASM → サーバー側 sharp に移行 (`6eb432f`)
-- main.js: **107.8 MB → 12 MiB** に削減
+- [x] `@mlc-ai/web-llm` → `POST /api/v1/translate` (MyMemory プロキシ) に移行、`langs`/`common-tags`/`json-repair-js`/`tiny-invariant`/`encoding-japanese` も削除
+- [x] デッドコード `extract_metadata_from_sound.ts` を削除
+- main.js: **107.8 MB → ~12 MiB** に削減
 
 ### Phase 3: 遅延除去・ReDoS 修正
 
@@ -31,7 +33,6 @@
 
 ## 未対応 (優先順)
 
-- [ ] **Phase 2**: `@mlc-ai/web-llm` → サーバー側翻訳 API に移行 (~13 MB 削減見込み)
 - [ ] **Phase 4**: 動画を GIF → WebM/MP4 に変換して配信
 - [ ] **Phase 4**: 画像を AVIF/WebP + リサイズして配信
 - [ ] **Phase 4**: 音声を MP3 → Opus に変換して配信
