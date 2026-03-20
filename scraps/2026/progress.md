@@ -17,7 +17,7 @@
 - [x] デッドコード `extract_metadata_from_sound.ts` を削除
 - [x] `negaposi-analyzer-ja` + `kuromoji` + `bayesian-bm25` → サーバー側 `POST /api/v1/sentiment` + `GET /api/v1/crok/suggestions/search` に移行 (名詞ハイライト要件は `queryTokens` をレスポンスに含めて維持)
 - [x] `react-syntax-highlighter` → `React.lazy` + `Suspense` で遅延分離。`CrokContainer.sendMessage` 時に prefetch 開始 (full ビルドのまま — Light ビルドは自動言語検出結果が変わり挙動変更禁止に抵触するため)
-- [x] main.js: **107.8 MB → ~12 MiB → ~896 KiB** に削減 (Phase 4 ① 後)
+- [x] main.js: **107.8 MB → ~12 MiB → ~896 KiB → ~346 KiB** に削減 (Phase 4 ② 後)
 - [x] `DirectMessagePage.tsx`: `setInterval(..., 1)` → `useEffect` + `scrollTo` に置換 (`b2761b2`)
 - [x] `AspectRatioBox.tsx`: `setTimeout(calcStyle, 500)` → `ResizeObserver` に置換 (`b2761b2`)
 - [x] ReDoS: `validation.ts`・`services.ts` の 4 箇所を修正 (`1d7d824`)
@@ -36,10 +36,10 @@
     - `gifler` / `omggif` / `bluebird` がバンドルから消える
     - `aria-label="動画プレイヤー"` の button は維持 (E2E テスト要件)
     - `prefers-reduced-motion` 対応維持
-- [ ] **Phase 4 ②** `AppContainer.tsx` のルートレベル `React.lazy()` + `<Suspense>` 化 ← **次にやること**
-  - 全 10 コンテナが static import → entry chunk に全部入っている
-  - 各 Route の element を `lazy(() => import("..."))` に変更し entry chunk を大幅削減
-- [ ] **Phase 4 ③** MP3 → WebM/Opus 変換
+- [x] **Phase 4 ②** `AppContainer.tsx` のルートレベル `React.lazy()` + `<Suspense>` 化
+  - Route コンテナ 9 個を `lazy()` に変更 (AuthModal・NewPostModal は常時 DOM なので静的のまま)
+  - main.js: **896 KiB → 346 KiB** (61% 削減)
+- [ ] **Phase 4 ③** MP3 → WebM/Opus 変換 ← **次にやること**
   - `public/sounds/*.mp3` を ffmpeg で WebM/Opus に変換 (`-c:a libopus -b:a 96k`)
   - `server/src/routes/api/sound.ts` も `.webm` 出力に変更
   - `get_path.ts`: `getSoundPath` の拡張子 `.mp3` → `.webm`
