@@ -20,6 +20,8 @@
 - [x] `@imagemagick/magick-wasm` WASM → サーバー側 sharp に移行 (`6eb432f`)
 - [x] `@mlc-ai/web-llm` → `POST /api/v1/translate` (MyMemory プロキシ) に移行、`langs`/`common-tags`/`json-repair-js`/`tiny-invariant`/`encoding-japanese` も削除
 - [x] デッドコード `extract_metadata_from_sound.ts` を削除
+- [x] `negaposi-analyzer-ja` + `kuromoji` + `bayesian-bm25` + `bluebird` → サーバー側 `POST /api/v1/sentiment` + `GET /api/v1/crok/suggestions/search` に移行
+  - サジェスト候補のハイライトは `queryTokens` をレスポンスに含めてクライアントに渡す形で対応 (名詞ハイライト要件を維持)
 - main.js: **107.8 MB → ~12 MiB** に削減
 
 ### Phase 3: 遅延除去・ReDoS 修正
