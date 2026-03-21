@@ -159,7 +159,13 @@
   - `UserProfileHeader` のバナー色: Tailwind v4 静的ビルドで動的クラス `bg-[${averageColor}]` が無効化されていたため `style={{ backgroundColor }}` に変更 + VRT スナップショット更新
   - `SearchInput` から `meta.error` 表示を削除し `submitError` に一本化 (strict mode 重複解消)
 - [ ] **Phase 5** サーバー最適化
-  - brotli 圧縮を有効化（express `compression` ミドルウェア）
+  - [x] gzip 圧縮を有効化 (`compression` パッケージ) + `Cache-Control: no-transform` 仕込みを除去
+    - `main.js` 347 KB → 115 KB (67% 削減) を確認済み
+  - [x] Brotli 事前圧縮配信を導入 (`compression-webpack-plugin` + `precompressedBrotli` middleware)
+    - `client/webpack.config.js` で `.js/.css/.html/.svg` の `.br` をビルド時生成
+    - `server/src/middleware/brotli.ts` で `Accept-Encoding: br` の場合に静的 `.br` を優先配信
+    - 適用範囲は `PUBLIC_PATH` / `CLIENT_DIST_PATH` の静的配信のみ (`/api/v1` 非対象)
+    - **SSE プロトコルは未変更** (`GET /api/v1/crok` への影響なし)
   - DB インデックスを追加（テーブルのリレーションを確認）
   - N+1 クエリを一括クエリに変換
   - API レスポンスの不要フィールド削除・limit 設定

@@ -2,6 +2,7 @@
 const path = require("path");
 
 const { BundleAnalyzerPlugin } = require("webpack-bundle-analyzer");
+const CompressionPlugin = require("compression-webpack-plugin");
 const CopyWebpackPlugin = require("copy-webpack-plugin");
 const HtmlWebpackPlugin = require("html-webpack-plugin");
 const MiniCssExtractPlugin = require("mini-css-extract-plugin");
@@ -64,7 +65,13 @@ const config = {
   },
   plugins: [
     ...(process.env.ANALYZE === "true"
-      ? [new BundleAnalyzerPlugin({ analyzerMode: "static", reportFilename: "bundle-report.html", open: true })]
+      ? [
+          new BundleAnalyzerPlugin({
+            analyzerMode: "static",
+            reportFilename: "bundle-report.html",
+            open: true,
+          }),
+        ]
       : []),
     new webpack.ProvidePlugin({
       Buffer: ["buffer", "Buffer"],
@@ -90,12 +97,31 @@ const config = {
       inject: false,
       template: path.resolve(SRC_PATH, "./index.html"),
     }),
+    new CompressionPlugin({
+      filename: "[path][base].br",
+      algorithm: "brotliCompress",
+      compressionOptions: {
+        level: 11,
+      },
+      test: /\.(js|css|html|svg)$/,
+      threshold: 10 * 1024,
+      minRatio: 0.8,
+      deleteOriginalAssets: false,
+    }),
   ],
   resolve: {
     extensions: [".tsx", ".ts", ".mjs", ".cjs", ".jsx", ".js"],
     alias: {
-      "bayesian-bm25$": path.resolve(__dirname, "node_modules", "bayesian-bm25/dist/index.js"),
-      ["kuromoji$"]: path.resolve(__dirname, "node_modules", "kuromoji/build/kuromoji.js"),
+      "bayesian-bm25$": path.resolve(
+        __dirname,
+        "node_modules",
+        "bayesian-bm25/dist/index.js",
+      ),
+      ["kuromoji$"]: path.resolve(
+        __dirname,
+        "node_modules",
+        "kuromoji/build/kuromoji.js",
+      ),
     },
     fallback: {
       fs: false,
