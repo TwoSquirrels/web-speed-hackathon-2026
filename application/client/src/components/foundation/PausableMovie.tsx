@@ -5,13 +5,14 @@ import { AspectRatioBox } from "@web-speed-hackathon-2026/client/src/components/
 import { FontAwesomeIcon } from "@web-speed-hackathon-2026/client/src/components/foundation/FontAwesomeIcon";
 
 interface Props {
+  preload?: "auto" | "metadata" | "none";
   src: string;
 }
 
 /**
  * クリックすると再生・一時停止を切り替えます。
  */
-export const PausableMovie = ({ src }: Props) => {
+export const PausableMovie = ({ preload = "none", src }: Props) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const prefersReducedMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   const [isPlaying, setIsPlaying] = useState(!prefersReducedMotion);
@@ -22,7 +23,7 @@ export const PausableMovie = ({ src }: Props) => {
     video.pause();
   }, [prefersReducedMotion]);
 
-  const handleClick = useCallback(
+const handleClick = useCallback(
     (ev: MouseEvent) => {
       ev.stopPropagation();
       const video = videoRef.current;
@@ -38,7 +39,9 @@ export const PausableMovie = ({ src }: Props) => {
   );
 
   return (
-    <AspectRatioBox aspectHeight={1} aspectWidth={1}>
+    <>
+      {preload === "auto" && <link as="video" fetchPriority="high" href={src} rel="preload" />}
+      <AspectRatioBox aspectHeight={1} aspectWidth={1}>
       <button
         aria-label="動画プレイヤー"
         className="group relative block h-full w-full"
@@ -52,6 +55,7 @@ export const PausableMovie = ({ src }: Props) => {
           loop
           muted
           playsInline
+          preload={preload}
           src={src}
         />
         <div
@@ -69,5 +73,6 @@ export const PausableMovie = ({ src }: Props) => {
         </div>
       </button>
     </AspectRatioBox>
+    </>
   );
 };

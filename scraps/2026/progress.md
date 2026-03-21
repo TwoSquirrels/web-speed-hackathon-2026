@@ -92,6 +92,39 @@
     - `public/images/profiles/*.jpg` (30 枚) を sharp AVIF quality 30 / max-width 200px で変換
     - `server/src/routes/api/image.ts`: `EXTENSION = "avif"`、`.avif({ quality: 30 })` 出力に変更
     - `get_path.ts`: `getImagePath` / `getProfileImagePath` の拡張子 `.jpg` → `.avif`
+- [x] **Phase 4 ④ 補足** `generateSeeds.ts` の alt 空文字問題を修正 (詳細は findings.md)
+  - `generateImages()` が `alt: ""` をハードコードしており、`mise run seed` のたびに ALT が消える仕込みだった
+  - `EXISTING_IMAGES: Array<{id, alt}>` に変更し、EXIF から抽出した 30 件の alt を静的マップとして定義
+  - `database.sqlite` (マスター DB) も再生成済み
+- [x] **Phase 4 ⑧** `loading` / `preload` / `fetchpriority` による読み込み順最適化
+  - **`loading` 属性 (画像)**
+    - `CoveredImage`: `loading?: "eager" | "lazy"` prop 追加 (デフォルト `"lazy"`)
+    - `ImageArea`: `loading` prop を追加して `CoveredImage` に伝播
+    - `Timeline`: `index` を `TimelineItem` に渡すように変更
+    - `TimelineItem`: index === 0 のみ `eager`、それ以外 `lazy`
+      - index 0 は動画投稿のためコンテンツ画像なし → 競合しない
+      - index 1 以降を `lazy` にすることで動画フェッチを妨げない
+    - `PostItem` (投稿詳細): プロフィール画像・コンテンツ画像ともに `eager`
+    - `CommentItem`: `lazy`
+    - `DirectMessageListPage`: index < 5 は `eager`、それ以降 `lazy`
+    - `UserProfileHeader`: `eager` (ページ最上部 + FastAverageColor の `onLoad` トリガー)
+  - **`preload` 属性 (動画)**
+    - `PausableMovie`: `preload?: "auto" | "metadata" | "none"` prop 追加 (デフォルト `"none"`)
+    - `MovieArea`: `preload` prop を追加して `PausableMovie` に伝播
+    - `TimelineItem`: index === 0 → `"auto"`、それ以外 → `"none"`
+    - `PostItem` (投稿詳細): `"auto"`
+  - **`fetchpriority` / preload hint (LCP 対応)**
+    - `CoveredImage`: `fetchpriority?: "high" | "low" | "auto"` prop 追加
+    - `ImageArea`: `fetchpriority` prop を追加して `CoveredImage` に伝播
+    - `TimelineItem`: index === 0 の `ImageArea` に `fetchpriority="high"` (動画投稿なので実質無効だが将来の保険)
+    - `PostItem`: `fetchpriority="high"` を `ImageArea` に設定
+    - `index.html`: `<link rel="preload" as="script" href="/scripts/main.js">` を追加
+    - `PausableMovie`: `preload === "auto"` のとき `<link rel="preload" as="video" fetchPriority="high">` を React 19 の head 自動ホイストで render 時に挿入
+      - `useEffect` (非同期) では `<video src>` が先にキューに入って手遅れになる問題を回避
+      - React 19 は `<link>` を JSX 内に書くと自動的に `<head>` に巻き上げる
+      - Chrome の `as="video"` への `fetchpriority` サポートが限定的なため優先度は `Low` のまま
+      - ただしリクエスト順序は「動画 → 画像」に安定し、後続の重複リクエストも減少
+  - HAR 分析・Chrome の video 優先度制限の調査結果は findings.md を参照
 - [ ] 投稿フロー計測不能の修正 → 投稿（50点）解禁
   - 「画像投稿の完了を確認できませんでした」→ 投稿後のUI状態変化（投稿完了表示・モーダルクローズ等）を採点ツールが認識できているか確認
 - [ ] `fast-average-color` がプロフィール画像バイナリをクライアント fetch していないか確認
@@ -104,7 +137,7 @@
 - [ ] フォント最適化
   - `index.css` の `font-display: block` → `swap` に変更（テキスト先行表示で FCP 改善。VRT 確認必須）
   - `ReiNoAreMincho-Regular.otf` / `ReiNoAreMincho-Heavy.otf` を woff2 に変換（ファイルサイズ大幅削減）
-- [ ] `loading="lazy"` を LCP 以外の画像に追加（timeline の下方画像など）
+- [x] `loading="lazy"` を LCP 以外の画像に追加 → Phase 4 ⑧ で対応済み
 - [ ] **Phase 4 ⑦** ホーム LCP=0 の原因調査・修正
   - ローカルで動作確認。`<video>` LCP の `preload` / `autoplay` 属性を確認
 - [ ] **Phase 5** サーバー最適化

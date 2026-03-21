@@ -69,11 +69,11 @@
 | `gifler` + `omggif` | - | `PausableMovie.tsx` で GIF を canvas に描画するために使用。native `<video>` 化で除去 |
 | `moment` | 176 KB | `day.js` |
 | `piexifjs` | 79 KB | `CoveredImage.tsx` で JPEG の EXIF `ImageDescription` を読んで `alt` テキスト表示に使用。`exifr`（60KB、AVIF/WebP/HEIC 対応）に差し替えれば AVIF 化が可能 |
-| `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 (**対応済み**) |
-| `negaposi-analyzer-ja` | 感情極性分析 | サーバー側に移行 (**対応済み**) |
-| `bayesian-bm25` | BM25 検索 (Crok サジェスト) | サーバー側に移行 (**対応済み**) |
-| `@mlc-ai/web-llm` | フロント LLM 翻訳 | `POST /api/v1/translate` に移行 (**対応済み**) |
-| `react-syntax-highlighter` | シンタックスハイライト (全言語バンドル) | `React.lazy` で遅延分離 (**対応済み**) |
+| `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 |
+| `negaposi-analyzer-ja` | 感情極性分析 | サーバー側に移行 |
+| `bayesian-bm25` | BM25 検索 (Crok サジェスト) | サーバー側に移行 |
+| `@mlc-ai/web-llm` | フロント LLM 翻訳 | `POST /api/v1/translate` に移行 |
+| `react-syntax-highlighter` | シンタックスハイライト (全言語バンドル) | `React.lazy` で遅延分離 |
 
 `kuromoji` + `negaposi-analyzer-ja` は検索画面の「ネガポジ判定」および Crok のサジェスト絞り込みで使用。
 
@@ -501,3 +501,43 @@ FCP がわずかに点数が出始めた (0.10〜0.40) が依然ほぼ 0。main.
 - 利用規約ページだけローカルで TBT 満点 (30 点) — ほぼ静的テキストなので React ハイドレーション後の JS 処理が少なく、ブロッキングが短い。リモートでは CPU 4x スロットリングにより 0.30 点まで落ちる。
 - **FCP がわずかでも点数が出始めた = main.js 削減の効果が出てきた兆候**。lodash / jquery / moment を除去してさらに削ることで、他ページでも TBT・FCP が取れるようになるはず。
 - 300 点の壁 = 全 9 ページ平均 33 点以上。CLS だけで各ページ 21〜25 点あるので、FCP と TBT が少し出れば届く距離感。
+
+---
+
+## `generateSeeds.ts` の alt 空文字仕込み
+
+`generateImages()` が `alt: ""` をハードコードして `images.jsonl` を毎回上書き生成する仕込み。
+`CoveredImage` 移行前は piexifjs がクライアントで EXIF を動的に読んでいたため露顕しなかったが、`<img alt>` に切り替えた後に ALT が全件空文字になって発覚。
+
+- `mise run seed` を実行するたびに手動更新した `images.jsonl` が消える
+- `database.sqlite` マスターにも空 alt が入るため `POST /initialize` 後も ALT が空のまま
+- 修正: `EXISTING_IMAGE_IDS: string[]` → `EXISTING_IMAGES: Array<{id, alt}>` に変更し、EXIF から抽出した 30 件の alt を静的マップとして定義
+
+### AVIF ファイルの EXIF 非保持問題
+
+sharp の `withMetadata()` で JPEG→AVIF 変換しても、`sharp().metadata().exif` が AVIF に対して `null` を返す (libheif の制約)。
+AVIF から EXIF を読もうとした場合は exiftool 等が必要になる。
+
+- **解決策**: 元の JPG ファイルを残しておき、そちらから sharp で EXIF を読む
+- `TIFF` ファイルも同様に `metadata().exif` が `null` になる → バッファを直接 IFD0 パースする `extractFromTiffBuf()` を `image.ts` に実装して対応
+
+---
+
+## 読み込み優先度の調査結果 (HAR 分析 `_local/har/adjusting-load-order-*.har`)
+
+### Chrome の video ネットワーク優先度の制限
+
+- `<video preload="auto">` でも Chrome のネットワーク優先度は常に **`Low`** — HTML 属性で `High` に昇格する方法は存在しない
+- `<link rel="preload" as="video" fetchpriority="high">` も `Low` のまま (`as="image"` は効くが `as="video"` は未サポートまたは制限あり)
+- React 19 の head 自動ホイスト (`<link>` を JSX に書くと `<head>` に巻き上げ) を使い、`<video>` と同一コミットで preload hint を挿入する方法を試みたが、優先度は変わらなかった
+
+### `useEffect` では遅すぎる問題
+
+- `useEffect` 内でから `<link rel="preload">` を動的生成すると、`<video src>` が DOM に入ってブラウザがキューに積んだ後になる
+- React 19 の JSX ホイストでも Chrome 側の判断が変わらないことを HAR で確認
+
+### 有効だった改善
+
+- `loading="eager"` を index 0 のみ・`lazy` をそれ以外に絞ることで、index 1 の画像 (High) と index 0 の動画 (Low) の **リクエスト開始順を逆転** させることはできた
+- throttling 環境での比較: 動画が画像より 8ms 早くキューに入るようになり、後続の余分な range リクエストも減少
+- `<video>` の優先度 `Low` は Chrome の仕様上の限界として受け入れ、リクエスト順で対処する方針

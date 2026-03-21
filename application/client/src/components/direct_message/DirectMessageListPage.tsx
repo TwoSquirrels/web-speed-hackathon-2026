@@ -64,7 +64,7 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
         </p>
       ) : (
         <ul data-testid="dm-list">
-          {conversations.map((conversation) => {
+          {conversations.map((conversation, index) => {
             const { messages } = conversation;
             const peer =
               conversation.initiator.id !== activeUser.id
@@ -83,6 +83,7 @@ export const DirectMessageListPage = ({ activeUser, newDmModalId }: Props) => {
                     <img
                       alt={peer.profileImage.alt}
                       className="w-12 shrink-0 self-start rounded-full"
+                      loading={index < 5 ? "eager" : "lazy"}
                       src={getProfileImagePath(peer.profileImage.id)}
                     />
                     <div className="flex flex-1 flex-col">

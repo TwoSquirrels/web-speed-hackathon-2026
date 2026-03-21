@@ -27,10 +27,12 @@ const isClickedAnchorOrButton = (target: EventTarget | null, currentTarget: Elem
  * @property {Models.Post} post
  */
 interface Props {
+  index: number;
   post: Models.Post;
 }
 
-export const TimelineItem = ({ post }: Props) => {
+export const TimelineItem = ({ index, post }: Props) => {
+  const loading = index === 0 ? "eager" : "lazy";
   const navigate = useNavigate();
 
   /**
@@ -59,6 +61,7 @@ export const TimelineItem = ({ post }: Props) => {
           >
             <img
               alt={post.user.profileImage.alt}
+              loading={loading}
               src={getProfileImagePath(post.user.profileImage.id)}
             />
           </Link>
@@ -92,12 +95,12 @@ export const TimelineItem = ({ post }: Props) => {
           </div>
           {post.images?.length > 0 ? (
             <div className="relative mt-2 w-full">
-              <ImageArea images={post.images} />
+              <ImageArea fetchpriority={index === 0 ? "high" : undefined} images={post.images} loading={loading} />
             </div>
           ) : null}
           {post.movie ? (
             <div className="relative mt-2 w-full">
-              <MovieArea movie={post.movie} />
+              <MovieArea movie={post.movie} preload={index === 0 ? "auto" : "none"} />
             </div>
           ) : null}
           {post.sound ? (
