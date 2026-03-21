@@ -66,9 +66,9 @@
 - [x] **E2E 対応②** DM一覧 VRT スナップショット更新
   - `playwright test --update-snapshots --grep "DM一覧が表示される"` で更新済み
 - [x] `crok.ts`: `sleep(10)` × 文字数 を**削除** → Crok AIチャット（50 点）が採点対象になる（運営許可済み 2026-03-21）
-- [ ] DM送信フロー計測不能の修正 → DM送信（50点）解禁
-  - 原因: `DirectMessageListPage.tsx` が `conversations === null` 中に `return null` しているため、「新しくDMを始める」ボタンが採点ツールのクリック時に DOM に存在しない可能性
-  - 対策: ローディング中でもボタンを表示するよう修正
+- [x] DM送信フロー計測不能の修正 → DM送信（50点）解禁
+  - 原因: `DirectMessageListPage.tsx` が `conversations === null` 中に `return null` しているため、「新しくDMを始める」ボタンが採点ツールのクリック時に DOM に存在しない
+  - 対策: `return null` を廃止してヘッダー（ボタン含む）を常に描画。リスト部分のみ `conversations == null` で非表示
 - [ ] **Phase 4 ⑤** Tailwind CSS ブラウザランタイム → 静的ビルド化
   - `index.html` の `@tailwindcss/browser@4.2.1` CDN 読み込みを削除
   - `<style type="text/tailwindcss">` の `@theme` / `@utility` ブロックを `index.css` に移動
