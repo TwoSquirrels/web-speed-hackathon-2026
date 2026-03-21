@@ -175,6 +175,69 @@ WSL2 の headless Chrome で動画 (GIF) や一部の画像がマゼンタの四
 
 ---
 
+## E2E テスト更新 (2026-03-21) で判明した問題
+
+upstream commit `5184745` で E2E/VRT が更新された。これにより新たに判明した問題と対処方針をまとめる。
+
+### `waitForPageToLoad` の実装
+
+```ts
+export async function waitForPageToLoad(page: Page): Promise<void> {
+  await page.waitForLoadState("networkidle", { timeout: 30_000 });
+  await page.waitForTimeout(10_000); // 10 秒固定待機
+}
+```
+
+`networkidle` + **10 秒固定待機**が追加された。VRT の直前に呼ばれる。ページが重いと `networkidle` 到達までに時間がかかり、テストが遅くなる。パフォーマンス改善で短縮される。
+
+### DM一覧 VRT (高さ 1080 → 1277 px)
+
+- upstream サンプル: **1920×1277 px** (正解の期待値)
+- 現在の期待スナップショット: 1920×1080 px (古い)
+- 我々の変更 (React.lazy 等) で DM ページの実際のレイアウトが変わった可能性あり
+- 対処: `playwright test --update-snapshots --grep "DM一覧が表示される"` でスナップショットを現在の状態に更新
+
+### ホーム→投稿詳細 click timeout (緊急度高)
+
+```
+First:   locator.click: Timeout 30000ms exceeded  (article は visible だがクリック不可)
+Retry#1: page.waitForURL: Timeout 30000ms exceeded (クリックは成功したが URL が変わらず)
+```
+
+- **原因推定**: `<Suspense fallback={null}>` + React.lazy の組み合わせで `article` が visible になっているが Playwright から見て "stable" でない (layout shift 継続中)
+- React.lazy 化で `TimelineContainer` のロード中は null が表示 → ロード後にコンテンツが一気に入る → 位置が安定するまでに時間がかかる可能性
+- Windows Chrome では手動確認で正常動作 → 機能的バグではなくテスト環境のタイミング問題
+- 対処候補: `<Suspense fallback={<div />}>` に変更して stable な要素を先に置く
+
+### 検索バリデーション (空文字送信でエラーが出ない)
+
+- origin/main から存在していた pre-existing バグ
+- `SearchInput` コンポーネントが `meta.touched && meta.error` でエラー表示する条件を持つ
+- `redux-form` で submit してもフィールドが `touched` にならないケースがある
+- 今回の E2E 更新で新テストとして追加され発覚
+- 修正: `meta.touched || meta.submitFailed` に変更してフォーム送信失敗時もエラーを表示
+
+---
+
+## VP9 エンコードの知見 (GIF → WebM)
+
+アセット変換時に発見したエンコード設定の知見。
+
+| 設定 | 結果 |
+|------|------|
+| `-crf 33 -b:v 0 -cpu-used 4` | ファイルが大きくなる場合あり (`-cpu-used 4` が圧縮効率を下げるため) |
+| `-crf 50 -b:v 0 -cpu-used 4` | 1 ファイル 6.2MB と最悪 |
+| `-crf 55 -b:v 0 -deadline good` | 3.6MB 合計 |
+| `-vf scale=480:480 -crf 40 -b:v 0 -deadline good` | **2.3MB 合計 (99% 削減)** ← 採用 |
+
+- `-cpu-used 4` は**逆効果**。エンコーダが圧縮最適化を省略して却って大きくなる
+- `-deadline good` (デフォルト) を必ず使うこと
+- **解像度縮小が最大の効果**。表示コンテナ幅 (最大 560px) に合わせて 480px にするだけで劇的に削減
+- CRF 55 は顔パーツが識別不能レベル → アウト。**CRF 40 が品質・サイズのバランス点**
+- 解像度縮小はレギュ違反なし (テスト条件は「著しく劣化していないこと・激しいブロックノイズがないこと」のみ)
+
+---
+
 ## fetcher 非同期化まわりの検証ログ (2026-03-21)
 
 ### 試したこと

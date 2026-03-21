@@ -93,4 +93,12 @@
   - DB インデックスを追加（テーブルのリレーションを確認）
   - N+1 クエリを一括クエリに変換
   - API レスポンスの不要フィールド削除・limit 設定
+- [ ] **E2E 対応①** 検索バリデーション: `SearchInput` の `meta.touched && meta.error` → `(meta.touched || meta.submitFailed) && meta.error` に変更
+  - origin/main から存在していた pre-existing バグ。今回の E2E 更新で新テストとして追加され発覚
+- [ ] **E2E 対応②** DM一覧 VRT スナップショット更新: `playwright test --update-snapshots --grep "DM一覧が表示される"`
+  - 現在の期待 1080px に対し実際は 1277px。upstream サンプルも 1277px
+- [ ] **E2E 対応③** ホーム→投稿詳細 click timeout 調査・修正 (緊急度高)
+  - `<Suspense fallback={null}>` で article が visible だが stable でない可能性
+  - `fallback={<div />}` など最小限の要素に変更して再テスト
+  - 「読み込み直後にボタンが反応しない」ユーザー体験上の問題でもあるため優先して対処
 - [ ] `crok.ts`: `sleep(3000)` の削除は**任意**（許可済みだが E2E リスクあり。最後に試す）

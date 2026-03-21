@@ -46,11 +46,6 @@ export const TimelineItem = ({ post }: Props) => {
     [post, navigate],
   );
 
-  /** ユーザーページへのリンクなど、記事全体 onClick より優先するリンクで使う */
-  const stopPropagation = useCallback<MouseEventHandler>((ev) => {
-    ev.stopPropagation();
-  }, []);
-
   return (
     <article
       className="hover:bg-cax-surface-subtle px-1 sm:px-4"
@@ -60,7 +55,6 @@ export const TimelineItem = ({ post }: Props) => {
         <div className="shrink-0 grow-0 pr-2 sm:pr-4">
           <Link
             className="border-cax-border bg-cax-surface-subtle block h-12 w-12 overflow-hidden rounded-full border hover:opacity-75 sm:h-16 sm:w-16"
-            onClick={stopPropagation}
             to={`/users/${post.user.username}`}
           >
             <img
@@ -73,14 +67,12 @@ export const TimelineItem = ({ post }: Props) => {
           <p className="overflow-hidden text-sm text-ellipsis whitespace-nowrap">
             <Link
               className="text-cax-text pr-1 font-bold hover:underline"
-              onClick={stopPropagation}
               to={`/users/${post.user.username}`}
             >
               {post.user.name}
             </Link>
             <Link
               className="text-cax-text-muted pr-1 hover:underline"
-              onClick={stopPropagation}
               to={`/users/${post.user.username}`}
             >
               @{post.user.username}
@@ -88,7 +80,6 @@ export const TimelineItem = ({ post }: Props) => {
             <span className="text-cax-text-muted pr-1">-</span>
             <Link
               className="text-cax-text-muted pr-1 hover:underline"
-              onClick={stopPropagation}
               to={`/posts/${post.id}`}
             >
               <time dateTime={new Date(post.createdAt).toISOString()}>
