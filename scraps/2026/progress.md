@@ -29,7 +29,11 @@
 - [x] `moment` (176 KB) → `dayjs` に置き換え (6 ファイル。plugin 設定は `index.tsx` で一括登録)
 - [x] `crok.ts`: `sleep(3000)` / `sleep(10)` は仕様として**維持** (除去禁止)
 - [x] **Phase 4 ①** GIF → WebM (VP9) 変換 + `PausableMovie.tsx` を native `<video>` 化
-  - `public/movies/*.gif` (15 本・180 MB) を ffmpeg VP9 で変換 → **43 MB** (76% 削減)
+  - `public/movies/*.gif` (15 本・180 MB) を ffmpeg VP9 **480px・CRF 40** で変換 → **2.3 MB** (99% 削減)
+    - 表示コンテナは `max-w-screen-sm` (640px) 内の `w-full` で実質最大 560px → 1080px はオーバースペック
+    - 解像度縮小はレギュ違反なし (テスト条件は「著しく劣化していないこと・激しいブロックノイズがないこと」のみ)
+    - CRF 55 は顔のパーツが認識できないレベルでアウト。CRF 40 が品質・サイズのバランス点
+    - `-cpu-used 4` は圧縮効率を下げるため逆効果。`-deadline good` (デフォルト) を使うこと
   - `server/src/routes/api/movie.ts`: `EXTENSION = "webm"`、ffmpeg を VP8 出力に変更
   - `get_path.ts`: `getMoviePath` の拡張子 `.gif` → `.webm`
   - `PausableMovie.tsx`: `gifler` + canvas → native `<video autoplay loop muted playsInline>` に書き換え
@@ -40,8 +44,8 @@
   - Route コンテナ 9 個を `lazy()` に変更 (AuthModal・NewPostModal は常時 DOM なので静的のまま)
   - main.js: **896 KiB → 346 KiB** (61% 削減)
 - [x] **Phase 4 ③** MP3 → Opus 変換 (WebM コンテナではなく `.opus` = Ogg/Opus)
-  - `public/sounds/*.mp3` (15 本・67 MB) を ffmpeg Opus で変換 → **約 27 MB** (60% 削減)
-  - `server/src/routes/api/sound.ts`: `EXTENSION = "opus"`、ffmpeg に `-c:a libopus -b:a 96k` 追加
+  - `public/sounds/*.mp3` (15 本・67 MB) を ffmpeg Opus 32k で変換 → **8.6 MB** (87% 削減)
+  - `server/src/routes/api/sound.ts`: `EXTENSION = "opus"`、ffmpeg に `-c:a libopus -b:a 32k` 追加
   - `get_path.ts`: `getSoundPath` の拡張子 `.mp3` → `.opus`
   - `SoundWaveSVG.tsx`: `AudioContext.decodeAudioData` はフォーマット非依存 → 変更不要
 - [ ] **Phase 4 ④** JPEG 圧縮最適化 ← **次にやること**
