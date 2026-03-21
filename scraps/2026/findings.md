@@ -117,11 +117,28 @@
 
 ---
 
-## フォントの最適化余地
+## フォントの最適化（対応済み）
 
-`index.css` で `font-display: block` を設定中。`swap` にすればフォントロード中にシステムフォントが先行表示され FCP が改善する（VRT で視覚差異が出る可能性があるため要確認）。
+### Rei no Are Mincho のサブセット + woff2 化
 
-また `ReiNoAreMincho-Regular.otf` / `Heavy.otf` が `.otf` 形式のまま。`.woff2` に変換するとファイルサイズが大幅に削減される。
+- `TermPage.tsx` の見出し (`<h1>` / `<h2>`) のみで使用（本文は通常フォント）
+- 見出しに使われる文字は 96 種類のみ → `pyftsubset` でサブセット化
+- Regular: 6.3 MB OTF → 24 KB woff2 / Heavy: 6.4 MB OTF → 23 KB woff2（270 倍削減）
+- `font-display: block` → `swap` に変更（FCP ブロック解消）
+- ファイルは `public/fonts/subsetted/` に配置
+
+### FontAwesome SVG スプライトのサブセット化
+
+- solid.svg (639 KB) から使用アイコン 17 種のみ抽出 → 7.2 KB
+- regular.svg (107 KB) から使用アイコン 1 種のみ抽出 → 986 B
+- `public/sprites/font-awesome-subsetted/` に配置、`FontAwesomeIcon.tsx` のパスを更新
+
+### KaTeX フォント（対応不要と判断）
+
+- `katex/dist/katex.min.css` が全 20 フォントファミリを `font-display: block` で定義
+- CSS は Crok 遅延 chunk (`69.css`) に分離済みで、他ページには影響なし
+- Crok は display 採点対象外（operations 50 点のみ）→ FCP/LCP への影響ゼロ
+- `font-display: swap` にすると数式ロード中に別の文字が見えて表示が壊れる → **変更しない**
 
 ---
 

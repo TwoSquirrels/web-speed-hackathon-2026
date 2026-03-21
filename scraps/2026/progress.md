@@ -134,9 +134,17 @@
   - `pnpm analyze` で bundle-report.html を確認
   - `gifler` / `jquery` / `pako` / `standardized-audio-context` / `core-js` / `regenerator-runtime` がバンドルに含まれていたら除去
   - `core-js` は browserslist を `last 2 Chrome versions` に絞れば大幅削減可能
-- [ ] フォント最適化
-  - `index.css` の `font-display: block` → `swap` に変更（テキスト先行表示で FCP 改善。VRT 確認必須）
-  - `ReiNoAreMincho-Regular.otf` / `ReiNoAreMincho-Heavy.otf` を woff2 に変換（ファイルサイズ大幅削減）
+- [x] フォント最適化
+  - **Rei no Are Mincho サブセット + woff2 化**
+    - TermPage の見出しで使用される 96 文字のみにサブセット化 (`pyftsubset`)
+    - Regular: 6.3 MB OTF → 24 KB woff2 / Heavy: 6.4 MB OTF → 23 KB woff2 (合計 **270x 削減**)
+    - `public/fonts/subsetted/ReiNoAreMincho-{Regular,Heavy}.woff2` に配置
+    - `index.css`: `font-display: block` → `swap` に変更 (先行レンダリングで FCP 改善)
+  - **FontAwesome SVG スプライト サブセット化**
+    - 使用アイコン 17 種 (solid) + 1 種 (regular) のみを抽出
+    - solid.svg: 639 KB → 7.2 KB / regular.svg: 107 KB → 986 B (合計 **91x 削減**)
+    - `public/sprites/font-awesome-subsetted/` に配置
+    - `FontAwesomeIcon.tsx`: スプライトパスを新ディレクトリに変更
 - [x] `loading="lazy"` を LCP 以外の画像に追加 → Phase 4 ⑧ で対応済み
 - [ ] **Phase 4 ⑦** ホーム LCP=0 の原因調査・修正
   - ローカルで動作確認。`<video>` LCP の `preload` / `autoplay` 属性を確認
