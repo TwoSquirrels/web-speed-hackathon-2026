@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router";
 import { Field, InjectedFormProps, reduxForm, WrappedFieldProps } from "redux-form";
 
@@ -19,19 +19,20 @@ interface Props {
 }
 
 const SearchInput = ({ input, meta }: WrappedFieldProps) => {
+  const showError = meta.touched && meta.error;
   return (
   <div className="flex flex-1 flex-col">
     <input
       {...input}
       className={`flex-1 rounded border px-4 py-2 focus:outline-none ${
-        (meta.touched || meta.submitFailed) && meta.error
+        showError
           ? "border-cax-danger focus:border-cax-danger"
           : "border-cax-border focus:border-cax-brand-strong"
       }`}
       placeholder="検索 (例: キーワード since:2025-01-01 until:2025-12-31)"
       type="text"
     />
-    {(meta.touched || meta.submitFailed) && meta.error && (
+    {showError && (
       <span className="text-cax-danger mt-1 text-xs">{meta.error}</span>
     )}
   </div>
@@ -45,6 +46,7 @@ const SearchPageComponent = ({
 }: Props & InjectedFormProps<SearchFormData, Props>) => {
   const navigate = useNavigate();
   const [isNegative, setIsNegative] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
 
   const parsed = parseSearchQuery(query);
 
@@ -87,20 +89,37 @@ const SearchPageComponent = ({
   }, [parsed]);
 
   const onSubmit = (values: SearchFormData) => {
+    setSubmitError(null);
     const sanitizedText = sanitizeSearchText(values.searchText.trim());
     navigate(`/search?q=${encodeURIComponent(sanitizedText)}`);
+  };
+
+  const handleFormSubmit = (e: FormEvent<HTMLFormElement>) => {
+    const fd = new FormData(e.currentTarget);
+    const searchText = (fd.get("searchText") as string) || "";
+    const errors = validate({ searchText });
+    if (errors.searchText) {
+      e.preventDefault();
+      setSubmitError(errors.searchText as string);
+      return;
+    }
+    setSubmitError(null);
+    handleSubmit(onSubmit)(e);
   };
 
   return (
     <div className="flex flex-col gap-4">
       <div className="bg-cax-surface p-4 shadow">
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleFormSubmit}>
           <div className="flex gap-2">
             <Field name="searchText" component={SearchInput} />
             <Button variant="primary" type="submit">
               検索
             </Button>
           </div>
+          {submitError && (
+            <span className="text-cax-danger mt-1 block text-xs">{submitError}</span>
+          )}
         </form>
         <p className="text-cax-text-muted mt-2 text-xs">
           since:YYYY-MM-DD で開始日、until:YYYY-MM-DD で終了日を指定できます

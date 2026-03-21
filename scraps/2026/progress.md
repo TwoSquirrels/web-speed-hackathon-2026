@@ -53,10 +53,13 @@
   - 根本原因: `CoveredImage` が JS でバイナリ fetch → 画像表示まで重い → WSL 環境でタイムアウト
   - ローカル固有の問題のため無視。Phase 4 ④ `CoveredImage` サーバー移行で根本解消される見込み
 - [x] **E2E 対応①** 検索バリデーション: redux-form × react-redux v9 の非互換バグ修正
-  - `SearchPage.tsx` の条件 `(meta.touched || meta.submitFailed) && meta.error` は正しかった
   - 根本原因: react-redux v9 が hooks ベースに移行したため class component の `UNSAFE_componentWillReceiveProps` が呼ばれなくなり、redux-form の `validateIfNeeded` が永遠に実行されなかった
   - `pnpm patch` で `redux-form@8.3.10` の `es/createReduxForm.js` + `lib/createReduxForm.js` に `componentDidUpdate` を追加して修正
   - `application/patches/redux-form@8.3.10.patch` として管理 (`pnpm-workspace.yaml` の `patchedDependencies` に登録済み)
+- [x] 検索フォーム: 未入力のまま送信してもエラーが表示されない問題を修正
+  - 原因: `Field` の `shouldComponentUpdate` (react-redux connect) が `meta.submitFailed` の変化を再描画に繋げなかった
+  - 対策: `handleFormSubmit` で `FormData` から値を直接取得して `validate` を手動呼び出し → エラーは `Field` の外側 (`<form>` 内) に `submitError` state で表示
+  - touch ベースの既存エラー表示 (`SearchInput` 内) はそのまま維持
 - [x] `mise.toml`: `dev` タスクの `depends + run` → `run` 配列形式に変更 (`seed` も同様)
   - `depends = ["build"]` は mise 仕様上は正しいが、実際にビルドが先に完了することを保証できないケースがあった
   - `run = ["pnpm build", "pnpm start"]` 配列形式は mise が直列実行・失敗時停止を保証する
