@@ -80,19 +80,18 @@
   - ストリーム完了後: react-markdown + rehype-katex でレンダリング切り替え
   - `key={content}` も除去（毎 character ごとの Markdown アンマウントが消える）
   - `CrokPage.tsx`: 最後のメッセージに `isStreaming` prop を渡す形で実装
-- [ ] **Phase 4 ④** 画像最適化
+- [x] **Phase 4 ④** 画像最適化
   - **① `CoveredImage` のサーバー移行（LCP 改善・バンドル削減）**
-    - 現状: クライアントが画像バイナリ全体を JS で fetch → piexifjs で EXIF 読む → image-size でサイズ取得 → blob URL 化 → やっと表示。バイナリ完全ダウンロードまで表示されないため LCP が死ぬ
-    - 対策: シード時 / アップロード時に sharp で EXIF `ImageDescription` と画像サイズを読んで DB に保存し、API レスポンスに `alt`・`width`・`height` を含める
-    - `CoveredImage` は `<img src={src} alt={alt}>` のみになりバイナリ fetch 不要に。ブラウザネイティブ読み込みで LCP 直撃
-    - `piexifjs`（79KB）・`image-size` をクライアントバンドルから完全除去
-    - 写真つき投稿詳細の LCP=0 の主因と推定
+    - `CoveredImage` のバイナリ fetch + piexifjs EXIF 読み取り + image-size → `<img src alt>` + `object-fit: cover` CSS に置換
+    - `alt` は API レスポンス (`Image.alt`) から取得。アップロード時に EXIF `ImageDescription` をサーバー側の軽量パーサーで抽出して返却 (`{id, alt}`)
+    - `piexifjs`（79KB）・`image-size` をクライアントバンドルから除去
+    - `CoveredImage` の `isLoading` 中の `return null` も消え、ブラウザネイティブ読み込みで LCP 改善
+    - `server/seeds/images.jsonl`: 全 30 件の `alt` を EXIF `ImageDescription` から抽出して更新 (空文字 → 日本語 alt)
   - **② AVIF 化 + リサイズ**
-    - `public/images/*.jpg` を sharp で AVIF 変換（表示コンテナに合わせた解像度にリサイズ）
-    - `server/src/routes/api/image.ts` で `.avif()` 出力に変更
-    - `get_path.ts` の拡張子 `.jpg` → `.avif`
-    - JPEG quality 75 より大幅に小さくなる（50〜80% 削減）
-    - ① の移行完了後は EXIF ライブラリ依存がなくなるため、フォーマット制約なし
+    - `public/images/*.jpg` (30 枚) を sharp AVIF quality 30 / max-width 640px で変換 → **90 MB → 400 KB** (99.6% 削減、jpg は残存)
+    - `public/images/profiles/*.jpg` (30 枚) を sharp AVIF quality 30 / max-width 200px で変換
+    - `server/src/routes/api/image.ts`: `EXTENSION = "avif"`、`.avif({ quality: 30 })` 出力に変更
+    - `get_path.ts`: `getImagePath` / `getProfileImagePath` の拡張子 `.jpg` → `.avif`
 - [ ] 投稿フロー計測不能の修正 → 投稿（50点）解禁
   - 「画像投稿の完了を確認できませんでした」→ 投稿後のUI状態変化（投稿完了表示・モーダルクローズ等）を採点ツールが認識できているか確認
 - [ ] `fast-average-color` がプロフィール画像バイナリをクライアント fetch していないか確認
