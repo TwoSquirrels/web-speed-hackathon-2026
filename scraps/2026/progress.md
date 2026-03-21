@@ -27,7 +27,6 @@
 - [x] `use_infinite_fetch.ts`: `allData` キャッシュで毎回全件 re-fetch を排除
 - [x] `lodash` (544 KB) → ネイティブ JS に置き換え (`SoundWaveSVG.tsx`)
 - [x] `moment` (176 KB) → `dayjs` に置き換え (6 ファイル。plugin 設定は `index.tsx` で一括登録)
-- [x] `crok.ts`: `sleep(3000)` / `sleep(10)` は仕様として**維持** (除去禁止)
 - [x] **Phase 4 ①** GIF → WebM (VP9) 変換 + `PausableMovie.tsx` を native `<video>` 化
   - `public/movies/*.gif` (15 本・180 MB) を ffmpeg VP9 **480px・CRF 40** で変換 → **2.3 MB** (99% 削減)
     - 表示コンテナは `max-w-screen-sm` (640px) 内の `w-full` で実質最大 560px → 1080px はオーバースペック
@@ -48,7 +47,50 @@
   - `server/src/routes/api/sound.ts`: `EXTENSION = "opus"`、ffmpeg に `-c:a libopus -b:a 32k` 追加
   - `get_path.ts`: `getSoundPath` の拡張子 `.mp3` → `.opus`
   - `SoundWaveSVG.tsx`: `AudioContext.decodeAudioData` はフォーマット非依存 → 変更不要
-- [ ] **Phase 4 ④** JPEG 圧縮最適化 ← **次にやること**
-  - `public/images/*.jpg` を sharp で quality 75 に再圧縮 (WebP/AVIF は `piexifjs` が JPEG-only のため非推奨)
-  - `server/src/routes/api/image.ts` で quality パラメータ追加
-- [ ] **Phase 5** gzip 圧縮・N+1 改善 (キャッシュは採点ツールが毎回 cold start で実行するため WSH スコアに効果なし → 対象外)
+- [ ] `crok.ts`: `sleep(10)` × 文字数 を**削除** → Crok AIチャット（50 点）が採点対象になる（運営許可済み 2026-03-21）**← 1行変更、今すぐやる**
+- [ ] DM送信フロー計測不能の修正 → DM送信（50点）解禁
+  - 原因: `DirectMessageListPage.tsx` が `conversations === null` 中に `return null` しているため、「新しくDMを始める」ボタンが採点ツールのクリック時に DOM に存在しない可能性
+  - 対策: ローディング中でもボタンを表示するよう修正
+- [ ] **Phase 4 ⑤** Tailwind CSS ブラウザランタイム → 静的ビルド化
+  - `index.html` の `@tailwindcss/browser@4.2.1` CDN 読み込みを削除
+  - `<style type="text/tailwindcss">` の `@theme` / `@utility` ブロックを `index.css` に移動
+  - `@tailwindcss/postcss` を `postcss.config.js` に追加してビルド時に静的 CSS を生成
+  - 全ページの TBT が 15〜25 点残っている主因と推定。解決で ~100点改善見込み
+- [ ] Crok の Markdown レンダリングをストリーミング中/完了後で切り替える
+  - ストリーミング中: plain text 表示のみ（文字追加ごとの Markdown パース・syntax highlight コストをゼロに）
+  - ストリーム完了後: react-markdown + react-syntax-highlighter でレンダリング切り替え
+  - `sleep(10)` 削除と組み合わせることで完了が早くなり、かつ中間コストも消える（運営確認済み: 完了後にレンダリングされていれば OK）
+- [ ] **Phase 4 ④** 画像最適化
+  - **① `CoveredImage` のサーバー移行（LCP 改善・バンドル削減）**
+    - 現状: クライアントが画像バイナリ全体を JS で fetch → piexifjs で EXIF 読む → image-size でサイズ取得 → blob URL 化 → やっと表示。バイナリ完全ダウンロードまで表示されないため LCP が死ぬ
+    - 対策: シード時 / アップロード時に sharp で EXIF `ImageDescription` と画像サイズを読んで DB に保存し、API レスポンスに `alt`・`width`・`height` を含める
+    - `CoveredImage` は `<img src={src} alt={alt}>` のみになりバイナリ fetch 不要に。ブラウザネイティブ読み込みで LCP 直撃
+    - `piexifjs`（79KB）・`image-size` をクライアントバンドルから完全除去
+    - 写真つき投稿詳細の LCP=0 の主因と推定
+  - **② AVIF 化 + リサイズ**
+    - `public/images/*.jpg` を sharp で AVIF 変換（表示コンテナに合わせた解像度にリサイズ）
+    - `server/src/routes/api/image.ts` で `.avif()` 出力に変更
+    - `get_path.ts` の拡張子 `.jpg` → `.avif`
+    - JPEG quality 75 より大幅に小さくなる（50〜80% 削減）
+    - ① の移行完了後は EXIF ライブラリ依存がなくなるため、フォーマット制約なし
+- [ ] 投稿フロー計測不能の修正 → 投稿（50点）解禁
+  - 「画像投稿の完了を確認できませんでした」→ 投稿後のUI状態変化（投稿完了表示・モーダルクローズ等）を採点ツールが認識できているか確認
+- [ ] `fast-average-color` がプロフィール画像バイナリをクライアント fetch していないか確認
+  - `CoveredImage` と同様の問題（バイナリfetch → 表示遅延）がユーザープロフィールページにある可能性
+  - サーバー側で dominant color を計算して API に含める方向で対応
+- [ ] **Phase 4 ⑥** デッドパッケージの bundle 残存確認
+  - `pnpm analyze` で bundle-report.html を確認
+  - `gifler` / `jquery` / `pako` / `standardized-audio-context` / `core-js` / `regenerator-runtime` がバンドルに含まれていたら除去
+  - `core-js` は browserslist を `last 2 Chrome versions` に絞れば大幅削減可能
+- [ ] フォント最適化
+  - `index.css` の `font-display: block` → `swap` に変更（テキスト先行表示で FCP 改善。VRT 確認必須）
+  - `ReiNoAreMincho-Regular.otf` / `ReiNoAreMincho-Heavy.otf` を woff2 に変換（ファイルサイズ大幅削減）
+- [ ] `loading="lazy"` を LCP 以外の画像に追加（timeline の下方画像など）
+- [ ] **Phase 4 ⑦** ホーム LCP=0 の原因調査・修正
+  - ローカルで動作確認。`<video>` LCP の `preload` / `autoplay` 属性を確認
+- [ ] **Phase 5** サーバー最適化
+  - gzip 圧縮を有効化（express `compression` ミドルウェア）
+  - DB インデックスを追加（テーブルのリレーションを確認）
+  - N+1 クエリを一括クエリに変換
+  - API レスポンスの不要フィールド削除・limit 設定
+- [ ] `crok.ts`: `sleep(3000)` の削除は**任意**（許可済みだが E2E リスクあり。最後に試す）

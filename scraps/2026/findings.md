@@ -32,10 +32,22 @@
 
 | 場所 | 内容 | 影響 |
 | --- | --- | --- |
-| `server/src/routes/api/crok.ts` | `await sleep(3000)` | 3 秒待機中に専用アニメーションあり — **除去禁止** (デザイン差異) |
-| `server/src/routes/api/crok.ts` | `await sleep(10)` × 文字数 | `crok-response.md` が **7,490 文字** → 合計 **74.9 秒** のストリーミング。採点ツールのタイムアウト原因。**Crok AIチャット → 計測できません の直接原因**。削除・短縮がレギュ違反かどうか運営に質問中 (2026-03-21)。回答次第で対応する |
+| `server/src/routes/api/crok.ts` | `await sleep(3000)` | 3 秒待機中に専用アニメーションあり — **削除可能**（運営確認済み 2026-03-21）。ただし E2E テストが落ちるリスクあり。react-syntax-highlighter の lazy load タイミングは後述の「ストリーミング中 Markdown 不要」対応で解決済みになる |
+| `server/src/routes/api/crok.ts` | `await sleep(10)` × 文字数 | `crok-response.md` が **7,490 文字** → 合計 **74.9 秒** のストリーミング。**削除・短縮ともに許可（運営確認済み 2026-03-21）**。削除すれば Crok AIチャット（50 点）が採点対象になる |
 | `client/src/components/direct_message/DirectMessagePage.tsx` | `setInterval(() => {...}, 1)` | 毎ミリ秒スクロール監視・TBT 大幅増加 |
 | `client/src/components/foundation/AspectRatioBox.tsx` | `setTimeout(calcStyle, 500)` | 500ms 描画遅延・CLS |
+
+---
+
+## Crok ストリーミング中の Markdown レンダリング（運営確認済み）
+
+「AI レスポンス完了時点で正しくレンダリングされていれば、ストリーミング中は Markdown が正しく表示されていなくてもよい」（運営確認済み 2026-03-21）
+
+**実装への示唆:**
+- ストリーミング中は plain text / `<pre>` で表示するだけでよい
+- ストリーム完了後（SSE の `done` イベント等）に react-markdown + react-syntax-highlighter でレンダリングを切り替える
+- `sleep(10)` 削除でストリーミングが爆速になっても、中間状態のレンダリングコスト（文字追加ごとの Markdown パース・syntax highlight）がゼロになる
+- react-syntax-highlighter の lazy load タイミング問題も解消（完了後にレンダリングするため、完了までに必ずロード済みになる）
 
 ---
 
@@ -56,7 +68,7 @@
 | `bluebird` | 183 KB | `gifler@0.3.0` の依存として流入 (`pnpm why bluebird` で確認済み)。GIF → WebM 変換 + `PausableMovie.tsx` を native `<video>` 化で `gifler` / `omggif` ごと除去できる |
 | `gifler` + `omggif` | - | `PausableMovie.tsx` で GIF を canvas に描画するために使用。native `<video>` 化で除去 |
 | `moment` | 176 KB | `day.js` |
-| `piexifjs` | 79 KB | `CoveredImage.tsx` で使用。用途要確認 |
+| `piexifjs` | 79 KB | `CoveredImage.tsx` で JPEG の EXIF `ImageDescription` を読んで `alt` テキスト表示に使用。`exifr`（60KB、AVIF/WebP/HEIC 対応）に差し替えれば AVIF 化が可能 |
 | `kuromoji` | 形態素解析 (辞書込みで重い) | サーバー側に移行 (**対応済み**) |
 | `negaposi-analyzer-ja` | 感情極性分析 | サーバー側に移行 (**対応済み**) |
 | `bayesian-bm25` | BM25 検索 (Crok サジェスト) | サーバー側に移行 (**対応済み**) |
@@ -70,6 +82,77 @@
 `fetchers.ts` の全関数が `$.ajax({ async: false })` (同期 XHR) を使用。リクエスト中メインスレッドをブロックするため TBT が大幅に増加する。`fetch` に置き換えれば `jquery` + `jquery-binarytransport` も除去できる。
 
 また `sendJSON` は `pako` で gzip 圧縮したリクエストを送信している (`Content-Encoding: gzip`)。サーバー側の対応状況を確認してから除去すること。
+
+---
+
+## Tailwind CSS ブラウザランタイム (仕込み)
+
+`index.html` が CDN から `@tailwindcss/browser@4.2.1` を読み込んでいる。
+
+```html
+<script src="https://cdn.jsdelivr.net/npm/@tailwindcss/browser@4.2.1"></script>
+<style type="text/tailwindcss">
+  @theme { ... }
+  @utility markdown { ... }
+</style>
+```
+
+これは Tailwind v4 の JIT エンジンをブラウザで動かすもの。**毎ページロードのたびに全クラスをスキャン・生成する**ため、TBT が全ページで爆発する。現在の TBT 残存（検索 23.10、DM一覧 25.20、利用規約 22.50 など）の主因と推定。
+
+対策: `@tailwindcss/postcss` または `tailwindcss` CLI を使った静的ビルドへ移行。`<style type="text/tailwindcss">` の `@theme` / `@utility` ブロックを `index.css` に移動。
+
+---
+
+## DM送信フロー計測不能の原因（推定）
+
+`DirectMessageListPage.tsx` の `conversations === null` 中は `return null` しており、「新しくDMを始める」ボタンが DOM に存在しない。採点ツールが DM一覧ページを開いた直後にボタンをクリックしようとすると、会話一覧の API 取得が完了していないため空ページが返りクリック失敗する可能性が高い。
+
+対策: ローディング中でも `<header>` とボタン部分は描画するよう修正する。
+
+---
+
+## `fast-average-color` の仕込み疑い
+
+`client/package.json` に `fast-average-color` が含まれている。ユーザープロフィールページのヘッダー背景色（テスト項目「ユーザーサムネイル画像の色を抽出した色になっていること」）に使用している可能性が高い。`CoveredImage` と同様にプロフィール画像バイナリをクライアントで fetch して色抽出しているなら、ユーザーページの表示遅延につながる。サーバー側で dominant color を計算して API に含める方向で対応すれば `fast-average-color` もバンドルから除去できる。
+
+---
+
+## フォントの最適化余地
+
+`index.css` で `font-display: block` を設定中。`swap` にすればフォントロード中にシステムフォントが先行表示され FCP が改善する（VRT で視覚差異が出る可能性があるため要確認）。
+
+また `ReiNoAreMincho-Regular.otf` / `Heavy.otf` が `.otf` 形式のまま。`.woff2` に変換するとファイルサイズが大幅に削減される。
+
+---
+
+## package.json に残っているデッドパッケージ
+
+progress.md では除去済みとしているが `client/package.json` に依然として残っている：
+
+| パッケージ | 除去済みのはずの経緯 |
+| --- | --- |
+| `gifler` / `omggif` | Phase 4 ① PausableMovie native video 化で不要 |
+| `jquery` / `jquery-binarytransport` / `pako` | fetchers.ts fetch 化で不要 |
+| `standardized-audio-context` | ProvidePlugin 削除で不要 |
+| `core-js` / `regenerator-runtime` | Chrome 最新版向けなら不要 |
+
+これらは webpack の production mode + tree shaking で除去される可能性があるが、CommonJS モジュール（jQuery 等）は tree shaking が効かないため実際にバンドルに残っているか要確認。`pnpm analyze` で bundle-report.html を確認すること。
+
+---
+
+## ホーム LCP=0 の未解決原因
+
+WebM 化 + native `<video>` 化を実施済みだが LCP=0 のまま。考えられる原因：
+
+- `<video>` の最初のフレームは Lighthouse の LCP 計測対象だが、`autoplay` / `muted` / `preload` 属性の組み合わせによってはフレーム表示が遅延する
+- タイムアウト（採点ツールが計測前に諦めている）の可能性もあり → ローカルで要確認
+- ホーム TBT=0, FCP=1.0 なのに LCP=0 → JS は動いているが画像・動画が LCP 候補になっていない構造の可能性
+
+---
+
+## 投稿フロー計測不能の原因
+
+`画像投稿の完了を確認できませんでした` → 採点ツールが画像投稿後の完了状態を検知できていない。`test_cases.md` の投稿シナリオと照合して、どのセレクタ・状態変化を期待しているか確認が必要。
 
 ---
 
@@ -168,7 +251,7 @@ import { TimelineContainer } from "...";
 | 音声 | 15 件 | ~67 MB | MP3 | WebM/Opus | ~1/5〜1/10 |
 | 画像 | 30 件 | ~86 MB | JPEG (無圧縮) | JPEG 圧縮 (quality 75) | ~1/3〜1/5 |
 
-**注意**: 画像は `piexifjs` が JPEG-only のため WebP/AVIF に変換すると ALT 表示機能 (EXIF Image Description 読み取り) が壊れる。JPEG のまま品質調整で対応する。
+**注意**: `CoveredImage.tsx` が画像バイナリ全体をクライアントで fetch して piexifjs で EXIF を読む構造になっており、バイナリ完全ダウンロードまで表示されないため LCP が壊滅する。EXIF 読み取り・画像サイズ取得をサーバー側に移行して API レスポンスに含めれば、piexifjs・image-size をクライアントから除去でき、フォーマット制約もなくなる（→ AVIF 化が可能になる）。
 
 ### サーバー側メディア変換フォーマット
 
@@ -179,6 +262,44 @@ import { TimelineContainer } from "...";
 
 クライアント側のパス生成関数も変更が必要:
 - `get_path.ts`: `getMoviePath` `.gif`→`.webm`、`getSoundPath` `.mp3`→`.webm`
+
+---
+
+## リモート計測スコア (2026-03-21, Phase 4 ①②③ 完了後 / 画像最適化前)
+
+**合計: 511.05 / 1150.00 (暫定 52 位)**
+
+| ページ | CLS | FCP | LCP | SI | TBT | 合計 |
+| --- | --- | --- | --- | --- | --- | --- |
+| ホーム | 9.75 | 1.00 | 0.00 | 0.00 | 0.00 | 10.75 |
+| 投稿詳細 | 25.00 | 2.30 | 8.50 | 5.20 | 20.10 | 61.10 |
+| 写真つき投稿詳細 | 25.00 | 2.40 | 0.00 | 3.30 | 0.30 | 31.00 |
+| 動画つき投稿詳細 | 25.00 | 2.50 | 4.75 | 4.00 | 14.40 | 50.65 |
+| 音声つき投稿詳細 | 25.00 | 2.50 | 4.75 | 5.70 | 0.00 | 37.95 |
+| 検索 | 25.00 | 2.50 | 5.50 | 5.80 | 23.10 | 61.90 |
+| DM一覧 | 25.00 | 3.30 | 5.50 | 4.60 | 25.20 | 63.60 |
+| DM詳細 | 25.00 | 3.40 | 3.00 | 1.70 | 0.00 | 33.10 |
+| 利用規約 | 25.00 | 2.40 | 5.50 | 5.60 | 22.50 | 61.00 |
+
+| ユーザーフロー | INP | TBT | 合計 |
+| --- | --- | --- | --- |
+| ユーザー登録 → サインアウト → サインイン | 25.00 | 25.00 | 50.00 |
+| DM送信 | 計測不能 | - | - |
+| 検索 → 結果表示 | 25.00 | 25.00 | 50.00 |
+| Crok AIチャット | 計測不能 | - | - |
+| 投稿 | 計測不能 | - | - |
+
+**計測不能の原因:**
+
+| 項目 | 原因 |
+| --- | --- |
+| DM送信 | 新しくDMを始めるモーダルの表示に失敗 |
+| Crok AIチャット | サインインに失敗 |
+| 投稿 | 画像投稿の完了を確認できず |
+
+**考察:**
+- LCP=0 や各種計測不能は、まだ最適化が不十分で採点ツールのタイムアウトに引っかかっている可能性が高い。ローカルで動作確認して原因を切り分けること
+- DM詳細が前回の「計測不能」から復活して 33.10 点取れている
 
 ---
 
